@@ -1,6 +1,8 @@
 const CACHE_PREFIX = 'ledger-web-';
-const CACHE_NAME = `${CACHE_PREFIX}portfolio-1791797732926`;
-const APP_SHELL = ['/', '/manifest.webmanifest', '/icon.png'];
+const CACHE_NAME = `${CACHE_PREFIX}portfolio-1791798920974`;
+const BASE_PATH = '/ledger-portfolio-demo';
+const APP_ROOT = `${BASE_PATH}/`;
+const APP_SHELL = [APP_ROOT, `${BASE_PATH}/manifest.webmanifest`, `${BASE_PATH}/icon.png`];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -35,11 +37,11 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (request.mode === 'navigate') {
-    event.respondWith(fetch(request).catch(() => caches.match('/')));
+    event.respondWith(fetch(request).catch(() => caches.match(APP_ROOT)));
     return;
   }
 
-  if (!url.pathname.startsWith('/_expo/')) return;
+  if (!url.pathname.startsWith(`${BASE_PATH}/_expo/`)) return;
 
   event.respondWith(
     caches.match(request).then((cached) => {

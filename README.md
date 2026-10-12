@@ -28,7 +28,13 @@ pnpm --filter @workspace/ledger run build:web
 ```
 
 The finished static website is written to `artifacts/ledger/static-build/web/`.
-Upload the **contents** of that folder to the root of a GitHub Pages site or another static host. The current build uses root-relative asset and PWA paths, so host it at the site's root (for example, a `username.github.io` site or a custom domain), not at a repository subpath.
+For a normal site root or custom domain, run the build without `BASE_PATH`. For a GitHub Pages project site, build with the repository path:
+
+```sh
+BASE_PATH=/ledger-portfolio-demo pnpm --filter @workspace/ledger run build:web
+```
+
+Upload the **contents** of that folder to the site root. `BASE_PATH` prefixes Expo assets and PWA paths so the demo works at `https://YOUR-USERNAME.github.io/ledger-portfolio-demo/`; leave it empty when publishing at a domain root.
 Keep the `assets/` and `_expo/` folders when uploading. The build renames Expo's hidden `.pnpm` asset directory to a visible `pnpm` directory and updates the bundle references, so the GitHub web uploader can include those files.
 
 ## Embed the demo on a portfolio page
@@ -47,8 +53,8 @@ Replace `https://YOUR-GITHUB-PAGES-DOMAIN/` with the URL where the website is ho
 
 ## GitHub Pages
 
-1. Create a public repository for the demo. For a root-hosted GitHub Pages site, use a repository named `YOUR-USERNAME.github.io`.
-2. Upload the contents of `static-build/web/` to the repository root.
+1. Create a public repository for the demo.
+2. Build with `BASE_PATH=/YOUR-REPOSITORY-NAME` and upload the contents of `static-build/web/` to the repository root.
 3. In repository **Settings → Pages**, publish from the `main` branch and `/ (root)`.
 4. Wait for the Pages URL to become available, then use it directly or in the portfolio iframe above.
 

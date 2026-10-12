@@ -1,16 +1,16 @@
 {
-  "id": "/",
+  "id": "/ledger-portfolio-demo/",
   "name": "Ledger — private personal finance",
   "short_name": "Ledger",
   "description": "A local-first ledger for bank alert imports, manual transactions, and spending insights.",
-  "start_url": "/",
-  "scope": "/",
+  "start_url": "/ledger-portfolio-demo/",
+  "scope": "/ledger-portfolio-demo/",
   "display": "standalone",
   "background_color": "#f5f5ef",
   "theme_color": "#24634f",
   "icons": [
     {
-      "src": "/icon.png",
+      "src": "/ledger-portfolio-demo/icon.png",
       "sizes": "1024x1024",
       "type": "image/png",
       "purpose": "any"

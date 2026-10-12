@@ -39,11 +39,15 @@ Keep the `assets/` and `_expo/` folders when uploading. The build renames Expo's
 
 ## Embed the demo on a portfolio page
 
-Replace `https://YOUR-GITHUB-PAGES-DOMAIN/` with the URL where the website is hosted:
+The live demo is available at:
+
+https://amvishalrajoriya.github.io/ledger-portfolio-demo/
+
+Use this iframe snippet to embed it:
 
 ```html
 <iframe
-  src="https://YOUR-GITHUB-PAGES-DOMAIN/"
+  src="https://amvishalrajoriya.github.io/ledger-portfolio-demo/"
   title="Ledger personal finance app demo"
   loading="lazy"
   style="width:100%;height:850px;border:0;border-radius:16px"
@@ -53,9 +57,7 @@ Replace `https://YOUR-GITHUB-PAGES-DOMAIN/` with the URL where the website is ho
 
 ## GitHub Pages
 
-1. Create a public repository for the demo.
-2. Build with `BASE_PATH=/YOUR-REPOSITORY-NAME` and upload the contents of `static-build/web/` to the repository root.
-3. In repository **Settings → Pages**, publish from the `main` branch and `/ (root)`.
-4. Wait for the Pages URL to become available, then use it directly or in the portfolio iframe above.
+The source repository is https://github.com/amVishalRajoriya/ledger-portfolio-demo/.
+GitHub Pages publishes the `main` branch root at https://amvishalrajoriya.github.io/ledger-portfolio-demo/.
 
 The downloadable portfolio bundle includes the built site, this guide, and an iframe snippet.

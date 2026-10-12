@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'ledger-web-';
-const CACHE_NAME = `${CACHE_PREFIX}portfolio-1791798920974`;
+const CACHE_NAME = `${CACHE_PREFIX}portfolio-1791799145349`;
 const BASE_PATH = '/ledger-portfolio-demo';
 const APP_ROOT = `${BASE_PATH}/`;
 const APP_SHELL = [APP_ROOT, `${BASE_PATH}/manifest.webmanifest`, `${BASE_PATH}/icon.png`];

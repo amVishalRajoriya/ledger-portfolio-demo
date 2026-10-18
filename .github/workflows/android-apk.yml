@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   build:
-    name: Build debug APK
+    name: Build standalone Android APK
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -67,16 +67,22 @@ jobs:
         working-directory: android-source
         run: CI=1 pnpm --filter @workspace/ledger exec expo prebuild --platform android --no-install
 
-      - name: Assemble debug APK
+      - name: Assemble standalone release APK
         working-directory: android-source/artifacts/ledger/android
         run: |
           sed -i 's/^reactNativeArchitectures=.*/reactNativeArchitectures=arm64-v8a/' gradle.properties
-          ./gradlew assembleDebug --no-daemon --max-workers=2
+          ./gradlew assembleRelease --no-daemon --max-workers=2
+          apk="app/build/outputs/apk/release/app-release.apk"
+          test -s "$apk"
+          unzip -Z1 "$apk" | grep -Eq '^assets/.*\.bundle$'
+          apksigner="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -n "$apksigner"
+          "$apksigner" verify --verbose "$apk"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ledger-android-debug
-          path: android-source/artifacts/ledger/android/app/build/outputs/apk/debug/app-debug.apk
+          name: ledger-android-standalone
+          path: android-source/artifacts/ledger/android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 30

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Platform, Pressable, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
@@ -7,6 +7,7 @@ import { useLedger } from '@/context/LedgerContext';
 import { confirmAction } from '@/lib/confirmAction';
 import { ActionButton, Card, Notice, Page, PageHeader, SectionHeading } from '@/components/LedgerUI';
 import { useAndroidNotificationAccess } from '@/hooks/useAndroidNotificationAccess';
+import { saveLocalBackup, selectLocalBackup } from '@/lib/localBackup';
 
 function SettingRow({
   icon,
@@ -43,6 +44,7 @@ export default function SettingsScreen() {
   const isAndroid = Platform.OS === 'android';
   const notificationAccess = useAndroidNotificationAccess();
   const [notificationActionError, setNotificationActionError] = useState('');
+  const [backupMessage, setBackupMessage] = useState('');
 
   const enableAutomaticImport = async () => {
     setNotificationActionError('');
@@ -95,6 +97,37 @@ export default function SettingsScreen() {
     });
   };
 
+  const createBackup = async () => {
+    setBackupMessage('');
+    try {
+      const saved = await saveLocalBackup(ledger.exportBackup());
+      if (saved) setBackupMessage('Backup saved. Keep this file somewhere private; it contains your financial records.');
+    } catch (error) {
+      setBackupMessage(error instanceof Error ? error.message : 'Could not create the backup.');
+    }
+  };
+
+  const restoreBackup = async () => {
+    setBackupMessage('');
+    try {
+      const backup = await selectLocalBackup();
+      if (backup === null) return;
+      confirmAction({
+        title: 'Replace this Ledger data?',
+        message: 'Restoring replaces the current local transactions, accounts, messages, rules, and review items with the selected backup.',
+        confirmLabel: 'Restore backup',
+        destructive: true,
+        onConfirm: () => {
+          void ledger.restoreBackup(backup)
+            .then(() => setBackupMessage('Backup restored on this device.'))
+            .catch((error) => setBackupMessage(error instanceof Error ? error.message : 'Could not restore this backup.'));
+        },
+      });
+    } catch (error) {
+      setBackupMessage(error instanceof Error ? error.message : 'Could not select a backup file.');
+    }
+  };
+
   return (
     <Page tabbed>
       <PageHeader eyebrow="Your device, your data" title="Settings" subtitle="Private by design. No bank sign-in." />
@@ -117,10 +150,16 @@ export default function SettingsScreen() {
         <Card style={{ paddingVertical: 7, gap: 4 }}>
           <SettingRow icon="message-square" title="Import a bank SMS" subtitle="Common INR formats work with new senders too" onPress={() => router.push('/import')} />
           <View style={{ height: 1, backgroundColor: colors.border }} />
+          {isAndroid ? (
+            <>
+              <SettingRow icon="clock" title="Import recent SMS history" subtitle="Scan up to 90 days, then review matches before adding" onPress={() => router.push('/history-import')} />
+              <View style={{ height: 1, backgroundColor: colors.border }} />
+            </>
+          ) : null}
           <SettingRow
-            icon={isAndroid ? 'message-square' : 'zap'}
-            title={isAndroid ? 'Message import' : 'Shortcuts automation'}
-            subtitle={isAndroid ? 'Optional notification import or copy and paste; no SMS inbox access' : 'Automatically save bank alerts on this iPhone'}
+            icon="message-square"
+            title="Automatic bank alerts"
+            subtitle="Optional notification import or copy and paste"
             onPress={() => router.push('/shortcuts')}
           />
           <View style={{ height: 1, backgroundColor: colors.border }} />
@@ -225,11 +264,22 @@ export default function SettingsScreen() {
       <View>
         <SectionHeading title="Data management" />
         <Card style={{ gap: 10 }}>
-          <SettingRow
-            icon="smartphone"
-            title="Local storage"
-            subtitle="Ledger’s iOS file protection is active only in a standalone iPhone build; it is not included in Expo Go or the web preview."
-          />
+          <SettingRow icon="smartphone" title="Local storage" subtitle="Stored on this device; manual backups can be saved to a file outside the app." />
+          <View style={{ height: 1, backgroundColor: colors.border }} />
+          {isAndroid ? (
+            <>
+              <ActionButton label="Create local backup" icon="download" secondary onPress={() => { void createBackup(); }} testID="create-local-backup" />
+              <ActionButton label="Restore from backup" icon="upload" secondary onPress={() => { void restoreBackup(); }} testID="restore-local-backup" />
+            </>
+          ) : (
+            <Text style={{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 11, lineHeight: 16 }}>
+              Local file backup and restore are available in the installed Android app.
+            </Text>
+          )}
+          <Text style={{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 10, lineHeight: 16 }}>
+            Backups contain sensitive financial data and are not encrypted. Save them to a private folder and do not share them.
+          </Text>
+          {backupMessage ? <Notice tone="neutral" icon="info">{backupMessage}</Notice> : null}
           <View style={{ height: 1, backgroundColor: colors.border }} />
           <SettingRow icon="trash-2" title="Clear all data" subtitle="Permanently remove this local ledger" onPress={reset} trailing={<Feather name="chevron-right" size={15} color={colors.destructive} />} />
         </Card>

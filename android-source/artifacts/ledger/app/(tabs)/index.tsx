@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Platform, Pressable, Text, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -110,6 +110,15 @@ export default function DashboardScreen() {
             </Text>
           </Notice>
         </Pressable>
+      ) : null}
+      {Platform.OS === 'android' ? (
+        <ActionButton
+          label="Import up to 3 months of SMS"
+          icon="download"
+          secondary
+          onPress={() => router.push('/history-import')}
+          testID="dashboard-history-import"
+        />
       ) : null}
 
       {ledger.transactions.length === 0 ? (

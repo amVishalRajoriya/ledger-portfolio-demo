@@ -32,7 +32,7 @@ export default function ReviewScreen() {
         subtitle={`${reviews.length} ${reviews.length === 1 ? 'message' : 'messages'} need your attention`}
         onBack={() => router.back()}
       />
-      <Notice tone="warning" icon="shield">Unclear or near-duplicate messages never become transactions automatically.</Notice>
+      <Notice tone="warning" icon="shield">Unclear, suspicious, duplicate, and older-history messages need your approval. Review and preview a message before saving it to transactions.</Notice>
       {reviews.length === 0 ? (
         <Card>
           <EmptyState title="All caught up" body="Messages that cannot be safely classified will appear here." icon="check-circle" />
@@ -56,7 +56,7 @@ export default function ReviewScreen() {
           </View>
           <View style={{ flexDirection: 'row', gap: 9 }}>
             <ActionButton
-              label="Try again"
+              label="Review & preview"
               icon="refresh-cw"
               secondary
               style={{ flex: 1 }}

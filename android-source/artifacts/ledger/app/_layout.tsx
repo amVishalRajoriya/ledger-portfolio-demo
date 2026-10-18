@@ -58,6 +58,7 @@ function RootLayoutNav() {
       <Stack.Screen name="new" />
       <Stack.Screen name="review" />
       <Stack.Screen name="shortcuts" />
+      <Stack.Screen name="history-import" />
       <Stack.Screen name="account/new" />
       <Stack.Screen name="transaction/[id]" />
     </Stack>

@@ -3,6 +3,7 @@ package com.anonymous.ledger
 import android.content.ComponentName
 import android.content.Intent
 import android.provider.Settings
+import android.provider.Telephony
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
@@ -80,6 +81,43 @@ class LedgerNotificationModule(
       promise.resolve(null)
     } catch (error: Exception) {
       promise.reject("LEDGER_NOTIFICATION_ACK", "Could not clear saved bank alerts from the local queue.", error)
+    }
+  }
+
+  @ReactMethod
+  fun getRecentSms(sinceMillis: Double, promise: Promise) {
+    try {
+      val rows = Arguments.createArray()
+      val projection = arrayOf(Telephony.Sms._ID, Telephony.Sms.ADDRESS, Telephony.Sms.BODY, Telephony.Sms.DATE)
+      appContext.contentResolver.query(
+        Telephony.Sms.CONTENT_URI,
+        projection,
+        "${Telephony.Sms.DATE} >= ? AND ${Telephony.Sms.DATE} <= ? AND ${Telephony.Sms.TYPE} = ?",
+        arrayOf(
+          sinceMillis.toLong().toString(),
+          System.currentTimeMillis().toString(),
+          Telephony.Sms.MESSAGE_TYPE_INBOX.toString(),
+        ),
+        "${Telephony.Sms.DATE} DESC",
+      )?.use { cursor ->
+        val idIndex = cursor.getColumnIndexOrThrow(Telephony.Sms._ID)
+        val addressIndex = cursor.getColumnIndexOrThrow(Telephony.Sms.ADDRESS)
+        val bodyIndex = cursor.getColumnIndexOrThrow(Telephony.Sms.BODY)
+        val dateIndex = cursor.getColumnIndexOrThrow(Telephony.Sms.DATE)
+        var count = 0
+        while (cursor.moveToNext() && count < 5000) {
+          val item = Arguments.createMap()
+          item.putString("id", cursor.getString(idIndex))
+          item.putString("sender", cursor.getString(addressIndex) ?: "")
+          item.putString("body", cursor.getString(bodyIndex) ?: "")
+          item.putString("receivedAt", java.time.Instant.ofEpochMilli(cursor.getLong(dateIndex)).toString())
+          rows.pushMap(item)
+          count += 1
+        }
+      }
+      promise.resolve(rows)
+    } catch (error: Exception) {
+      promise.reject("LEDGER_SMS_HISTORY", "Could not read recent SMS history.", error)
     }
   }
 

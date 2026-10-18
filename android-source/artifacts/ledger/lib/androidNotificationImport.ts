@@ -16,6 +16,14 @@ interface AndroidNotificationBridge {
   openSettings(): Promise<void>;
   getPendingAlerts(): Promise<AndroidBankAlert[]>;
   acknowledgeAlerts(ids: string[]): Promise<void>;
+  getRecentSms(sinceMillis: number): Promise<AndroidSmsHistoryMessage[]>;
+}
+
+export interface AndroidSmsHistoryMessage {
+  id: string;
+  sender: string;
+  body: string;
+  receivedAt: string;
 }
 
 const bridge = NativeModules.LedgerNotificationAccess as AndroidNotificationBridge | undefined;
@@ -64,5 +72,12 @@ export async function getPendingAndroidBankAlerts(): Promise<AndroidBankAlert[]>
 export async function acknowledgeAndroidBankAlerts(ids: string[]): Promise<void> {
   if (!bridge || !isAndroidNotificationImportAvailable() || ids.length === 0) return;
   await bridge.acknowledgeAlerts(ids);
+}
+
+export async function getRecentAndroidSms(sinceMillis: number): Promise<AndroidSmsHistoryMessage[]> {
+  if (!bridge || !isAndroidNotificationImportAvailable()) {
+    throw new Error('SMS history import requires an installed Android build.');
+  }
+  return bridge.getRecentSms(sinceMillis);
 }
 

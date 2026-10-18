@@ -8,25 +8,6 @@ import { useLedger } from '@/context/LedgerContext';
 import { useAndroidNotificationAccess } from '@/hooks/useAndroidNotificationAccess';
 import { confirmAction } from '@/lib/confirmAction';
 
-const nativeSetupSteps = [
-  {
-    title: 'Create a Messages automation',
-    body: 'In Shortcuts, open Automation → New Personal Automation → Message, then choose the bank sender. Make one automation for each sender you want to capture.',
-  },
-  {
-    title: 'Let it run automatically',
-    body: 'Choose Run Immediately. iOS may defer automations until the iPhone has been unlocked after a restart.',
-  },
-  {
-    title: 'Add Ledger’s action',
-    body: 'Add “Log Bank Message”. Set Message text to the incoming message and Sender ID to the sender. Leave Received at blank if Shortcuts does not provide a timestamp.',
-  },
-  {
-    title: 'Open Ledger to import',
-    body: 'Ledger parses the queued message on this iPhone. Uncertain messages go to Review. Existing SMS history is not read; import older messages manually.',
-  },
-];
-
 const androidSetupSteps = [
   {
     title: 'Choose whether to enable automatic alerts',
@@ -34,7 +15,7 @@ const androidSetupSteps = [
   },
   {
     title: 'Ledger filters on this device',
-    body: 'Only likely bank and payment alerts are queued. Ledger parses them locally; recognized alerts enter your ledger and uncertain bank messages go to Review.',
+    body: 'Likely new alerts are checked locally. Suspicious or unclear alerts go to Review; clear live matches may be added automatically.',
   },
   {
     title: 'Duplicates and other notifications stay safe',
@@ -42,7 +23,7 @@ const androidSetupSteps = [
   },
   {
     title: 'Keep manual import available',
-    body: 'You can still copy and paste a bank alert when automatic import is off. Ledger never asks for SMS inbox access or sends messages to Gemini or a server.',
+    body: 'You can also scan up to 90 days of older SMS after granting separate permission. Every older match goes to Review for your approval. No message text leaves the device.',
   },
 ];
 
@@ -61,7 +42,7 @@ const previewSteps = [
   },
   {
     title: 'Keep this preview fictional',
-    body: 'This preview stores data in the browser or Expo Go on this device. Native notification access and iOS file protection are unavailable here. Do not enter real financial messages.',
+    body: 'This preview stores data in the browser or Expo Go on this device. Android SMS permission and notification access are unavailable here. Do not enter real financial messages.',
   },
 ];
 
@@ -75,7 +56,7 @@ export default function OnboardingScreen() {
     Platform.OS === 'web' ||
     Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
   const isAndroid = Platform.OS === 'android';
-  const steps = isPreview ? previewSteps : isAndroid ? androidSetupSteps : nativeSetupSteps;
+  const steps = isPreview ? previewSteps : androidSetupSteps;
 
   const finish = async () => {
     if (saving) return;
@@ -127,7 +108,7 @@ export default function OnboardingScreen() {
             ? 'Try the ledger, message parser, and insights with fictional data. No bank sign-in or server is needed.'
             : isAndroid
               ? 'Optional Android notification access can import new bank alerts. Copy and paste remains available, and Ledger never reads your SMS inbox.'
-              : 'One-time setup forwards new alerts through Apple Shortcuts. Ledger processes them on this iPhone.'
+            : 'Ledger is currently focused on Android. Import alerts on your device and keep your records local.'
         }
       />
 
@@ -135,10 +116,10 @@ export default function OnboardingScreen() {
         {isPreview
           ? isAndroid
             ? 'Android notification access is unavailable in this web or Expo Go preview. Use only fictional data here.'
-            : 'The native Messages Shortcut and iOS file protection are not active in this web or Expo Go preview.'
+            : 'Android SMS access and notification import are unavailable in this web or Expo Go preview.'
           : isAndroid
             ? 'Ledger does not request SMS permission or scan your message history. Message text stays on this device and is not sent to Gemini or a server.'
-            : 'Your message text stays on this iPhone. Ledger does not need Gemini or a server to import it.'}
+            : 'Message text stays on this device. Ledger does not need Gemini or a server to import it.'}
       </Notice>
 
       {isAndroid ? (
@@ -224,9 +205,7 @@ export default function OnboardingScreen() {
       <Text style={{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 18, textAlign: 'center' }}>
         {isPreview
           ? 'Use sample data for this portfolio demo. You can clear local data in Settings.'
-          : isAndroid
-            ? 'You can revisit these steps in Settings → Message import.'
-            : 'You can revisit these instructions any time in Settings → Shortcuts automation.'}
+          : 'You can revisit these steps in Settings → Message import.'}
       </Text>
     </Page>
   );

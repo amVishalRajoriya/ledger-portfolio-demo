@@ -1,5 +1,4 @@
 import React from 'react';
-import { Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Text, View } from 'react-native';
 import { useColors } from '@/hooks/useColors';
@@ -7,101 +6,66 @@ import { ActionButton, Card, Notice, Page, PageHeader, SectionHeading } from '@/
 
 const steps = [
   {
-    title: 'Create a message automation',
-    body: 'In Apple Shortcuts, open Automation → New Personal Automation → Message. Choose the bank sender. Create one automation for each sender you want to import.',
+    title: 'Choose an import method',
+    body: 'Enable Android notification access for new bank alerts, or grant SMS permission to scan the last 90 days.',
   },
   {
-    title: 'Let it run automatically',
-    body: 'Choose Run Immediately. The automation can run without opening Ledger; iOS may still defer automations until the phone has been unlocked after a restart.',
+    title: 'Review uncertain alerts',
+    body: 'Suspicious live alerts and all matches from older SMS history go to Review. They cannot affect totals until you approve them.',
   },
   {
-    title: 'Add Ledger’s action',
-    body: 'Add the “Log Bank Message” action. Set Message text to the incoming message and Sender ID to the sender. Leave Received at blank to use the time the automation ran.',
-  },
-  {
-    title: 'Open Ledger to finish importing',
-    body: 'The action saves a small file in Ledger’s protected local storage. The next time Ledger opens, it parses the queued messages on-device. Uncertain messages go to Review; no SMS is sent to a server.',
+    title: 'Keep a portable backup',
+    body: 'Create a local backup file in Settings and keep it in a private folder. Restore that file after reinstalling Ledger.',
   },
 ];
 
 export default function ShortcutsScreen() {
   const colors = useColors();
   const router = useRouter();
-  const isAndroid = Platform.OS === 'android';
-
   return (
     <Page>
       <PageHeader
         eyebrow="On-device import"
-        title={isAndroid ? 'Android message import' : 'iPhone Shortcuts'}
-        subtitle={isAndroid
-          ? 'Optional automatic bank alerts or copy and paste. Ledger does not read your SMS inbox.'
-          : 'Forward new bank alerts to Ledger; parsing happens locally when Ledger opens.'}
+        title="Android message import"
+        subtitle="Choose how to import alerts. Message processing stays on your device."
       />
 
-      {isAndroid ? (
-        <>
+      <>
           <Notice tone="positive" icon="lock">
-            Automatic import uses Android notification access, which may expose notification contents to Ledger. Likely bank alerts are filtered and processed on-device; Ledger does not request SMS permission or send messages to Gemini or a server.
+            Android notification access can expose notification contents. SMS history scanning requests separate permission. Both are optional and process messages locally.
           </Notice>
           <View style={{ gap: 12 }}>
-            <SectionHeading title="Choose an import method" subtitle="Automatic notification import is optional. Copy and paste works without notification access." />
+            <SectionHeading title="Choose an import method" subtitle="You can use one method or keep importing messages manually." />
             <Card style={{ gap: 8 }}>
-              <Text style={{ color: colors.foreground, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>Automatic bank alerts</Text>
-              <Text style={{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 18 }}>Turn this on in Settings → Automatic bank alerts. Android will ask you to grant notification access. Revoke it at any time in Android settings.</Text>
+              <Text style={{ color: colors.foreground, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>New bank alerts</Text>
+              <Text style={{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 18 }}>Turn on notification import in Settings. Suspicious messages go to Review before they affect your dashboard.</Text>
               <Text style={{ color: colors.foreground, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>1. Copy the complete alert from Messages</Text>
               <Text style={{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 18 }}>Include the sender text when your messaging app lets you copy it.</Text>
               <Text style={{ color: colors.foreground, fontFamily: 'Inter_600SemiBold', fontSize: 13, marginTop: 7 }}>2. Paste it into Ledger and preview</Text>
-              <Text style={{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 18 }}>Check the result before saving. Unclear bank alerts go to Review; ordinary purchases belong in manual entry.</Text>
+              <Text style={{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 18 }}>Check the result before saving. Unclear alerts go to Review; ordinary purchases belong in manual entry.</Text>
             </Card>
           </View>
+          <ActionButton label="Import up to 3 months of SMS" icon="clock" secondary testID="open-history-import" onPress={() => router.push('/history-import')} />
           <ActionButton label="Manage automatic bank alerts" icon="bell" secondary testID="android-import-settings" onPress={() => router.push('/(tabs)/settings')} />
           <ActionButton label="Import a bank message" icon="message-square" onPress={() => router.push('/import')} />
-          <Notice tone="neutral" icon="info">
-            Automatic import processes only new eligible notifications. For older alerts, copy one message at a time; Ledger never scans SMS history.
+          <View style={{ gap: 12 }}>
+            <SectionHeading title="Import from Android SMS history" subtitle="Scan up to 90 days after you grant permission. Every possible match goes to Review first." />
+            {steps.map((step, index) => (
+              <Card key={step.title} style={{ flexDirection: 'row', gap: 13, alignItems: 'flex-start' }}>
+                <View style={{ width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.secondary }}>
+                  <Text style={{ color: colors.primary, fontFamily: 'Inter_700Bold', fontSize: 12 }}>{index + 1}</Text>
+                </View>
+                <View style={{ flex: 1, gap: 5 }}>
+                  <Text style={{ color: colors.foreground, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>{step.title}</Text>
+                  <Text style={{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 18 }}>{step.body}</Text>
+                </View>
+              </Card>
+            ))}
+          </View>
+          <Notice tone="warning" icon="lock">
+            A backup file contains sensitive financial data and is not encrypted. Store it privately and do not share it.
           </Notice>
-        </>
-      ) : (
-      <>
-      <Notice tone="positive" icon="lock">
-        iOS does not let Ledger read the Messages inbox. Shortcuts forwards only the message you choose, and this flow stores it locally without Gemini or a server.
-      </Notice>
-
-      <Notice tone="neutral" icon="info">
-        Common INR transaction formats can work with new senders without bank-specific setup. Ledger labels a new institution by its SMS sender ID; unfamiliar formats go to Review.
-      </Notice>
-
-      <Notice tone="warning" icon="info">
-        This action is available in an installed iOS build that includes Ledger’s native Shortcut intent. It is not available in the Replit preview or Expo Go.
-      </Notice>
-
-      <View style={{ gap: 12 }}>
-        <SectionHeading title="Set up an automation" subtitle="Create one automation for each SMS sender you want to capture." />
-        {steps.map((step, index) => (
-          <Card key={step.title} style={{ flexDirection: 'row', gap: 13, alignItems: 'flex-start' }}>
-            <View style={{
-              width: 28,
-              height: 28,
-              borderRadius: 14,
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: colors.secondary,
-            }}>
-              <Text style={{ color: colors.primary, fontFamily: 'Inter_700Bold', fontSize: 12 }}>{index + 1}</Text>
-            </View>
-            <View style={{ flex: 1, gap: 5 }}>
-              <Text style={{ color: colors.foreground, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>{step.title}</Text>
-              <Text style={{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 18 }}>{step.body}</Text>
-            </View>
-          </Card>
-        ))}
-      </View>
-
-      <Notice tone="warning" icon="inbox">
-        Shortcuts only captures messages received after you create the automation. Use the in-app import screen for older messages. The automation never reads your SMS history.
-      </Notice>
       </>
-      )}
     </Page>
   );
 }

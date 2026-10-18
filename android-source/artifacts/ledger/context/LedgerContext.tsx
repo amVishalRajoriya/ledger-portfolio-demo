@@ -56,7 +56,9 @@ interface LedgerContextValue extends LedgerState {
   removeTransaction: (id: string) => void;
   addAccount: (account: Omit<Account, 'id' | 'isActive'> & { isActive?: boolean }) => string;
   updateAccount: (id: string, patch: Partial<Account>) => void;
-  ingestSms: (body: string, sender: string, receivedAt: string, reviewId?: string) => ParseResult;
+  ingestSms: (body: string, sender: string, receivedAt: string, reviewId?: string, requireApproval?: boolean) => ParseResult;
+  exportBackup: () => string;
+  restoreBackup: (value: unknown) => Promise<void>;
   createRule: (merchant: string, categoryId: string) => void;
   resolveReview: (id: string, discardMessage?: boolean) => void;
   toggleFyMode: () => void;
@@ -93,6 +95,27 @@ function latestOwnerMatch(transaction: Transaction, previous: Transaction): bool
   const left = normalizeMerchant(transaction.merchantNormalized);
   const right = normalizeMerchant(previous.merchantNormalized);
   return left.length >= 10 && right.length >= 10 && (left.startsWith(right) || right.startsWith(left));
+}
+
+function suspiciousTransactionReason(body: string, result: Extract<ParseResult, { kind: 'transaction' }>): string | undefined {
+  const transaction = result.transaction;
+  if (/\b(?:unauthorized|fraud|suspicious|disputed|chargeback|pending|reversed)\b/i.test(body)) {
+    return 'This alert contains a status or dispute term. Verify it with your bank before adding it.';
+  }
+  if (!transaction.accountTail && !transaction.referenceNumber) {
+    return 'The alert has no account suffix or reference number to help verify it.';
+  }
+  if (result.institution === 'Other bank') {
+    return 'The bank or payment source could not be verified. Check this message before adding it.';
+  }
+  if (transaction.amount >= 500_000) {
+    return 'This is an unusually large amount. Confirm it before adding it.';
+  }
+  const timestamp = Date.parse(transaction.occurredAt);
+  if (!Number.isFinite(timestamp) || timestamp > Date.now() + 5 * 60_000) {
+    return 'The transaction date could not be verified safely.';
+  }
+  return undefined;
 }
 
 export function LedgerProvider({ children }: { children: ReactNode }) {
@@ -440,7 +463,7 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
-  const ingestSms = useCallback((body: string, sender: string, receivedAt: string, reviewId?: string): ParseResult => {
+  const ingestSms = useCallback((body: string, sender: string, receivedAt: string, reviewId?: string, requireApproval = false): ParseResult => {
     const result = parseBankMessage(body, sender, receivedAt, state.rules);
     const raw = makeRawMessage(body, sender, receivedAt);
     const retryRawMessageId = reviewId
@@ -489,6 +512,46 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
         lastMessageAt: receivedAt,
       }));
       return result;
+    }
+
+    if (!requireApproval && result.kind === 'transaction') {
+      const suspicion = suspiciousTransactionReason(body, result);
+      if (suspicion) {
+        const review: ReviewItem = {
+          id: reviewId ?? makeId('review'),
+          rawMessageId: raw.id,
+          body,
+          sender,
+          receivedAt,
+          reason: suspicion,
+          parsedAmount: result.transaction.amount,
+        };
+        setState((current) => ({
+          ...current,
+          rawMessages: [{ ...raw, status: 'NEEDS_REVIEW' }, ...current.rawMessages],
+          reviews: [review, ...current.reviews.filter((item) => item.id !== reviewId)],
+          lastMessageAt: receivedAt,
+        }));
+        return { kind: 'review', reason: suspicion, parsedAmount: result.transaction.amount };
+      }
+    }
+
+    if (requireApproval && result.kind === 'transaction') {
+      const review: ReviewItem = {
+        id: reviewId ?? makeId('review'),
+        rawMessageId: raw.id,
+        body,
+        sender,
+        receivedAt,
+        reason: 'Imported from SMS history. Confirm the details before adding it to your dashboard.',
+        parsedAmount: result.transaction.amount,
+      };
+      setState((current) => ({
+        ...current,
+        rawMessages: [{ ...raw, status: 'NEEDS_REVIEW' }, ...current.rawMessages],
+        reviews: [review, ...current.reviews],
+      }));
+      return { kind: 'review', reason: review.reason, parsedAmount: review.parsedAmount };
     }
 
     if (result.kind === 'card-update') {
@@ -791,6 +854,28 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const loadDemo = useCallback(() => setState(createDemoState()), []);
+  const exportBackup = useCallback(() => JSON.stringify({
+    format: 'ledger-local-backup',
+    version: 1,
+    createdAt: new Date().toISOString(),
+    state,
+  }), [state]);
+  const restoreBackup = useCallback(async (value: unknown) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('This backup file is not valid.');
+    const backup = value as { format?: unknown; version?: unknown; state?: unknown };
+    if (backup.format !== 'ledger-local-backup' || backup.version !== 1 || !backup.state || typeof backup.state !== 'object') {
+      throw new Error('This is not a supported Ledger backup.');
+    }
+    const restored = backup.state as Partial<LedgerState>;
+    if (!Array.isArray(restored.transactions) || !Array.isArray(restored.accounts) || !Array.isArray(restored.reviews) ||
+        !Array.isArray(restored.rawMessages) || !Array.isArray(restored.categories) || !Array.isArray(restored.rules)) {
+      throw new Error('The backup is incomplete or damaged.');
+    }
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ ...EMPTY_STATE, ...restored }));
+    setState({ ...EMPTY_STATE, ...restored });
+    await AsyncStorage.setItem(ONBOARDING_KEY, 'true');
+    setHasCompletedOnboarding(true);
+  }, []);
   const clearLedger = useCallback(() => {
     setState({ ...EMPTY_STATE, categories: [...EMPTY_STATE.categories] });
   }, []);
@@ -809,6 +894,8 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
     addAccount,
     updateAccount,
     ingestSms,
+    exportBackup,
+    restoreBackup,
     createRule,
     resolveReview,
     toggleFyMode,
@@ -817,7 +904,7 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
   }), [
     state, isLoading, storageWarning, shortcutImportWarning, notificationImportWarning, addTransaction, updateTransaction, removeTransaction,
     hasCompletedOnboarding, completeOnboarding,
-    addAccount, updateAccount, ingestSms, createRule, resolveReview, toggleFyMode, loadDemo, clearLedger,
+    addAccount, updateAccount, ingestSms, exportBackup, restoreBackup, createRule, resolveReview, toggleFyMode, loadDemo, clearLedger,
   ]);
 
   return <LedgerContext.Provider value={value}>{children}</LedgerContext.Provider>;

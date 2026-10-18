@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { useColors } from '@/hooks/useColors';
 import { useLedger } from '@/context/LedgerContext';
@@ -20,8 +20,9 @@ const channels: Channel[] = ['UPI', 'POS', 'ECOM', 'ATM', 'NEFT', 'AUTO_DEBIT', 
 
 export default function NewTransactionScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ reviewId?: string }>();
   const colors = useColors();
-  const { accounts, categories, addTransaction } = useLedger();
+  const { accounts, categories, addTransaction, resolveReview } = useLedger();
   const [amount, setAmount] = useState('');
   const [merchant, setMerchant] = useState('');
   const [date, setDate] = useState(localDateInput());
@@ -66,7 +67,8 @@ export default function NewTransactionScreen() {
       isExcludedFromTotals: false,
       isUserVerified: true,
     });
-    router.replace('/');
+    if (typeof params.reviewId === 'string') resolveReview(params.reviewId, true);
+    router.replace(typeof params.reviewId === 'string' ? '/review' : '/');
   };
 
   return (

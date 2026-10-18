@@ -30,6 +30,13 @@ test('does not queue ordinary, promotional, or invalid notifications', () => {
     false,
   );
   assert.equal(isPotentialAndroidBankAlert({ ...makeAlert('SBI Bank', 'A/C debited Rs 250'), id: '' }), false);
+  assert.equal(
+    isPotentialAndroidBankAlert(makeAlert(
+      'ICICI Bank',
+      'Congratulations on activating ICICI Bank iMobile! As a security measure, txn limit for first 24 hours is Rs 10,000.',
+    )),
+    false,
+  );
 });
 
 test('allows an uncertain but bank-related alert to reach the review parser', () => {

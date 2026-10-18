@@ -361,14 +361,15 @@ function parseGenericBankTransaction(
   institution: string,
   institutionId: string,
   rules: UserRule[],
+  confirmedDirection?: Direction,
 ): ParseResult {
-  const actions = Array.from(text.matchAll(/\b(debit(?:ed)?|credit(?:ed)?|spent|paid|purchase|purchased|withdrawn|charged|received|refund(?:ed)?|reversal|cashback)\b/gi));
+  const actions = Array.from(text.matchAll(/\b(debit(?:ed)?|credit(?:ed)?(?!\s+card\b)|spent|paid|purchase|purchased|withdrawn|charged|received|refund(?:ed)?|reversal|cashback)\b/gi));
   const debitAction = actions.find((match) => /^(?:debit(?:ed)?|spent|paid|purchase|purchased|withdrawn|charged)$/i.test(match[1]));
   const creditAction = actions.find((match) => /^(?:credit(?:ed)?|received|refund(?:ed)?|reversal|cashback)$/i.test(match[1]));
   if (!debitAction && !creditAction) {
     return { kind: 'review', reason: 'No clear debit or credit indicator was found.' };
   }
-  if (debitAction && creditAction) {
+  if (debitAction && creditAction && !confirmedDirection) {
     return { kind: 'review', reason: 'The message contains both debit and credit wording. Confirm the transaction direction.' };
   }
 
@@ -377,7 +378,12 @@ function parseGenericBankTransaction(
     return { kind: 'review', reason: 'No currency amount could be safely identified.' };
   }
 
-  const actionIndex = (debitAction ?? creditAction)?.index ?? 0;
+  const selectedAction = confirmedDirection === 'DEBIT'
+    ? debitAction ?? creditAction
+    : confirmedDirection === 'CREDIT'
+      ? creditAction ?? debitAction
+      : debitAction ?? creditAction;
+  const actionIndex = selectedAction?.index ?? 0;
   const scoredAmounts = amountTokens.map((match) => {
     const start = match.index ?? 0;
     const end = start + match[0].length;
@@ -403,7 +409,9 @@ function parseGenericBankTransaction(
     };
   }
 
-  const direction: Direction = creditAction ? 'CREDIT' : 'DEBIT';
+  const direction: Direction = debitAction && creditAction && confirmedDirection
+    ? confirmedDirection
+    : creditAction ? 'CREDIT' : 'DEBIT';
   const channel: Channel = /\bUPI\b/i.test(text) ? 'UPI'
     : /\b(?:NFS|ATM|cash withdrawal)\b/i.test(text) ? 'ATM'
     : /\bNEFT\b/i.test(text) ? 'NEFT'
@@ -452,6 +460,7 @@ export function parseBankMessage(
   sender: string,
   receivedAt: string,
   rules: UserRule[] = [],
+  confirmedDirection?: Direction,
 ): ParseResult {
   const text = body.trim();
   if (!text) return { kind: 'review', reason: 'Message is empty. Paste the complete bank alert.' };
@@ -467,6 +476,7 @@ export function parseBankMessage(
     [/\b(?:failed|failure)\b/i, 'Failed transaction — no completed payment.'],
     [/\brefund initiated\b/i, 'Refund is pending; wait for the credit alert.'],
     [/\b(?:KYC|OTP|PIN reset|device registration|pre-approved|eligible for|offer|festive season)\b/i, 'Promotional or service message.'],
+    [/\bcongratulations\b[\s\S]{0,240}\b(?:activat\w*|(?:txn|transaction)\s+limit)\b/i, 'Account activation or transaction-limit notice, not a completed transaction.'],
   ];
   const rejected = negative.find(([pattern]) => pattern.test(text));
   if (rejected) return { kind: 'rejected', reason: rejected[1] };
@@ -682,7 +692,7 @@ export function parseBankMessage(
     };
   }
 
-  const genericResult = parseGenericBankTransaction(text, receivedAt, institution, institutionId, rules);
+  const genericResult = parseGenericBankTransaction(text, receivedAt, institution, institutionId, rules, confirmedDirection);
   return genericResult.kind === 'review' && amountInText !== undefined && genericResult.parsedAmount === undefined
     ? { ...genericResult, parsedAmount: amountInText }
     : genericResult;

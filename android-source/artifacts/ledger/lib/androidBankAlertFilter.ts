@@ -9,7 +9,7 @@ export interface AndroidBankAlert {
 const transactionWords = /\b(?:debit(?:ed)?|credit(?:ed)?|spent|paid|purchase(?:d)?|withdrawn|charged|received|refund(?:ed)?|reversal|cashback|transaction(?:\s+alert)?|txn)\b/i;
 const bankEvidence = /\b(?:bank|a\/c|account|card|upi|neft|imps|rtgs|nfs|atm|pos|nach|ecs|ach|rrn|ref(?:erence)?)\b/i;
 const amountOrDue = /(?:₹|INR|Rs\.?)\s*[\d,]+(?:\.\d{1,2})?|\bamount\s+due\b|\bavailable\s+limit\b/i;
-const nonTransactionNotice = /\b(?:\bOTP\b|one[- ]time password|KYC|pre[- ]approved|eligible for|festive season|reward points|statement generated|offer|cashback request.*(?:processing|processed)|will be debited|will be deducted|to be debited|(?:txn|transaction|purchase)\s+declined|failed transaction|refund initiated|mandate\s+(?:created|registered|setup))\b/i;
+const nonTransactionNotice = /\b(?:\bOTP\b|one[- ]time password|KYC|pre[- ]approved|eligible for|festive season|reward points|statement generated|offer|cashback request.*(?:processing|processed)|will be debited|will be deducted|to be debited|(?:txn|transaction|purchase)\s+declined|failed transaction|refund initiated|mandate\s+(?:created|registered|setup)|congratulations[\s\S]{0,240}(?:activat\w*|(?:txn|transaction)\s+limit))\b/i;
 
 export function isPotentialAndroidBankAlert(alert: AndroidBankAlert): boolean {
   if (

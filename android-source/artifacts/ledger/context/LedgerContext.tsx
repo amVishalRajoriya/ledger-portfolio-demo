@@ -12,6 +12,7 @@ import React, {
 import { AppState, Platform } from 'react-native';
 import {
   Account,
+  Direction,
   EMPTY_STATE,
   LedgerState,
   ParseResult,
@@ -56,7 +57,7 @@ interface LedgerContextValue extends LedgerState {
   removeTransaction: (id: string) => void;
   addAccount: (account: Omit<Account, 'id' | 'isActive'> & { isActive?: boolean }) => string;
   updateAccount: (id: string, patch: Partial<Account>) => void;
-  ingestSms: (body: string, sender: string, receivedAt: string, reviewId?: string, requireApproval?: boolean) => ParseResult;
+  ingestSms: (body: string, sender: string, receivedAt: string, reviewId?: string, requireApproval?: boolean, confirmedDirection?: Direction) => ParseResult;
   exportBackup: () => string;
   restoreBackup: (value: unknown) => Promise<void>;
   createRule: (merchant: string, categoryId: string) => void;
@@ -463,8 +464,8 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
-  const ingestSms = useCallback((body: string, sender: string, receivedAt: string, reviewId?: string, requireApproval = false): ParseResult => {
-    const result = parseBankMessage(body, sender, receivedAt, state.rules);
+  const ingestSms = useCallback((body: string, sender: string, receivedAt: string, reviewId?: string, requireApproval = false, confirmedDirection?: Direction): ParseResult => {
+    const result = parseBankMessage(body, sender, receivedAt, state.rules, confirmedDirection);
     const raw = makeRawMessage(body, sender, receivedAt);
     const retryRawMessageId = reviewId
       ? state.reviews.find((item) => item.id === reviewId)?.rawMessageId
@@ -474,6 +475,12 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
       message.status !== 'IGNORED' &&
       message.id !== retryRawMessageId,
     )) {
+      if (reviewId) {
+        setState((current) => ({
+          ...current,
+          reviews: current.reviews.filter((item) => item.id !== reviewId),
+        }));
+      }
       return { kind: 'review', reason: 'This exact message was already imported.' };
     }
 
@@ -484,7 +491,11 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
           ...raw,
           status: /promotional|service message/i.test(result.reason) ? 'PROMOTIONAL' : 'REJECTED_NON_TXN',
           rejectReason: result.reason,
-        }, ...current.rawMessages],
+        },
+        ...current.rawMessages.map((message) => message.id === retryRawMessageId
+          ? { ...message, status: 'IGNORED' as const }
+          : message)],
+        reviews: current.reviews.filter((item) => item.id !== reviewId),
         lastMessageAt: receivedAt,
       }));
       return result;

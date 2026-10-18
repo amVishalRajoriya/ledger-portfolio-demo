@@ -3,7 +3,7 @@ import { Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { useColors } from '@/hooks/useColors';
-import { ParseResult, formatRupees, localDateInput, parseBankMessage } from '@/lib/ledger';
+import { Direction, ParseResult, formatRupees, localDateInput, parseBankMessage } from '@/lib/ledger';
 import { useLedger } from '@/context/LedgerContext';
 import {
   ActionButton,
@@ -26,6 +26,7 @@ export default function ImportScreen() {
   );
   const [result, setResult] = useState<ParseResult | null>(null);
   const [message, setMessage] = useState('');
+  const [confirmedDirection, setConfirmedDirection] = useState<Direction | null>(null);
 
   const preview = useMemo(() => {
     if (result?.kind !== 'transaction') return null;
@@ -40,7 +41,7 @@ export default function ImportScreen() {
     };
   }, [result]);
 
-  const runPreview = () => {
+  const runPreview = (directionOverride?: Direction) => {
     const date = new Date(`${receivedDate}T12:00:00`);
     if (!body.trim()) {
       setResult({ kind: 'review', reason: 'Paste the complete bank message first.' });
@@ -51,14 +52,17 @@ export default function ImportScreen() {
       return;
     }
     setMessage('');
-    setResult(parseBankMessage(body, sender, date.toISOString(), rules));
+    const direction = directionOverride ?? confirmedDirection ?? undefined;
+    if (directionOverride) setConfirmedDirection(directionOverride);
+    setResult(parseBankMessage(body, sender, date.toISOString(), rules, direction));
   };
 
   const saveMessage = () => {
     const date = new Date(`${receivedDate}T12:00:00`);
-    const saved = ingestSms(body.trim(), sender.trim(), date.toISOString(), params.reviewId);
+    const saved = ingestSms(body.trim(), sender.trim(), date.toISOString(), params.reviewId, false, confirmedDirection ?? undefined);
     if (saved.kind === 'review' && saved.reason.includes('already imported')) {
       setMessage(saved.reason);
+      if (params.reviewId) setTimeout(() => router.replace('/review'), 650);
       return;
     }
     if (saved.kind === 'transaction') {
@@ -67,12 +71,12 @@ export default function ImportScreen() {
     else if (saved.kind === 'card-update') setMessage('Card details saved on this device.');
     else if (saved.kind === 'rejected') setMessage('Message kept in the local archive and left out of your totals.');
     else setMessage('Message added to the Review Inbox. No transaction was created.');
-    setTimeout(() => router.replace('/'), 650);
+    setTimeout(() => router.replace(params.reviewId ? '/review' : '/'), 650);
   };
 
   const saveOrEnterManually = () => {
     if (result?.kind === 'rejected' && result.manualEntry) {
-      router.push('/new');
+      router.push({ pathname: '/new', params: params.reviewId ? { reviewId: params.reviewId } : undefined });
       return;
     }
     saveMessage();
@@ -99,7 +103,7 @@ export default function ImportScreen() {
         <TextField
           label="Bank message"
           value={body}
-          onChangeText={(value) => { setBody(value); setResult(null); }}
+          onChangeText={(value) => { setBody(value); setResult(null); setConfirmedDirection(null); }}
           placeholder="Paste the complete SMS alert"
           multiline
           autoCapitalize="sentences"
@@ -111,7 +115,7 @@ export default function ImportScreen() {
           <TextField
             label="SMS sender ID (optional)"
             value={sender}
-            onChangeText={(value) => { setSender(value); setResult(null); setMessage(''); }}
+            onChangeText={(value) => { setSender(value); setResult(null); setMessage(''); setConfirmedDirection(null); }}
             placeholder="e.g. VM-SBIBNK-S"
             autoCapitalize="characters"
           />
@@ -123,7 +127,7 @@ export default function ImportScreen() {
         <TextField
           label="Received date"
           value={receivedDate}
-          onChangeText={(value) => { setReceivedDate(value); setResult(null); }}
+          onChangeText={(value) => { setReceivedDate(value); setResult(null); setConfirmedDirection(null); }}
           placeholder="YYYY-MM-DD"
           keyboardType="numbers-and-punctuation"
           hint="Set this to the day the message arrived, if you are importing an older SMS."
@@ -176,11 +180,28 @@ export default function ImportScreen() {
               </Notice>
             ) : null}
             {result.kind === 'review' ? (
-              <Notice tone="warning" icon="inbox">Saving this message sends it to the Review Inbox—not into your spending totals.</Notice>
+              <Notice tone="warning" icon="inbox">
+                {params.reviewId
+                  ? 'This item will stay in Review until the details are clear or you discard it.'
+                  : 'Saving this message sends it to the Review Inbox—not into your spending totals.'}
+              </Notice>
             ) : null}
+            {params.reviewId && result.kind === 'review' &&
+              result.reason === 'The message contains both debit and credit wording. Confirm the transaction direction.' &&
+              result.parsedAmount !== undefined ? (
+                <View style={{ gap: 9 }}>
+                  <Text style={{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 18 }}>
+                    Choose the direction shown by your bank. Ledger will re-parse the message with your confirmation.
+                  </Text>
+                  <View style={{ flexDirection: 'row', gap: 9 }}>
+                    <ActionButton label="Confirm as debit" icon="arrow-up-right" secondary style={{ flex: 1 }} onPress={() => runPreview('DEBIT')} />
+                    <ActionButton label="Confirm as credit" icon="arrow-down-left" secondary style={{ flex: 1 }} onPress={() => runPreview('CREDIT')} />
+                  </View>
+                </View>
+              ) : null}
             {message ? <Text style={{ color: colors.positive, fontFamily: 'Inter_500Medium', fontSize: 12 }}>{message}</Text> : null}
             <ActionButton
-              label={message ? 'Saved' : result.kind === 'review' ? 'Save to review inbox'
+              label={message ? 'Saved' : result.kind === 'review' ? params.reviewId ? 'Keep in Review' : 'Save to review inbox'
                 : result.kind === 'rejected' ? result.manualEntry ? 'Add manually instead' : 'Archive message'
                   : 'Save on this device'}
               icon={result.kind === 'rejected' && result.manualEntry ? 'plus' : 'check'}

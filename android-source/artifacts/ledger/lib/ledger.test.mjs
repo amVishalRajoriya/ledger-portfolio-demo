@@ -40,3 +40,52 @@ test('an unknown-bank alert with account and balance details remains supported',
   assert.equal(result.transaction.amount, 100);
   assert.equal(result.transaction.accountTail, '1234');
 });
+
+test('a credit-card instrument is not mistaken for a credit transaction direction', () => {
+  const result = parseBankMessage(
+    'Amount Spent: Rs.149 with HDFC Bank Credit Card 0671 at YOUTUBE on 2026-10-18. This transaction was completed without additional authentication mandated by RBI.',
+    'AD-HDFCBK-S',
+    '2026-10-18T14:28:47.000Z',
+  );
+
+  assert.equal(result.kind, 'transaction');
+  if (result.kind !== 'transaction') return;
+  assert.equal(result.transaction.direction, 'DEBIT');
+  assert.equal(result.transaction.amount, 149);
+  assert.equal(result.transaction.accountTail, '0671');
+});
+
+test('bank activation congratulations with a transaction limit are rejected', () => {
+  const result = parseBankMessage(
+    'Congratulations on activating ICICI Bank iMobile! If not activated, call 18001080. As a security measure, txn limit for first 24 hours is Rs 10,000.',
+    'AD-ICICIT-S',
+    '2026-10-17T14:00:00.000Z',
+  );
+
+  assert.equal(result.kind, 'rejected');
+  assert.match(result.reason, /activation|transaction-limit/i);
+});
+
+test('a completed AutoPay mandate debit is a transaction, not a setup notice', () => {
+  const result = parseBankMessage(
+    'Your A/C XX1234 has been debited by Rs 850.00 for AutoPay mandate on 18/10/2026. UTR 123456789012.',
+    'AD-ICICIB-S',
+    '2026-10-18T12:00:00.000Z',
+  );
+
+  assert.equal(result.kind, 'transaction');
+  if (result.kind !== 'transaction') return;
+  assert.equal(result.transaction.direction, 'DEBIT');
+  assert.equal(result.transaction.channel, 'AUTO_DEBIT');
+});
+
+test('review can explicitly confirm direction when both action words are present', () => {
+  const message = 'Your A/C XX1234 was debited and credited Rs 100.00 on 19/05/25.';
+  const ambiguous = parseBankMessage(message, 'VM-XYZBNK-S', receiveTime);
+  const confirmed = parseBankMessage(message, 'VM-XYZBNK-S', receiveTime, [], 'DEBIT');
+
+  assert.equal(ambiguous.kind, 'review');
+  assert.equal(confirmed.kind, 'transaction');
+  if (confirmed.kind !== 'transaction') return;
+  assert.equal(confirmed.transaction.direction, 'DEBIT');
+});

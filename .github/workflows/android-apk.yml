@@ -69,7 +69,9 @@ jobs:
 
       - name: Assemble debug APK
         working-directory: android-source/artifacts/ledger/android
-        run: ./gradlew assembleDebug --no-daemon --max-workers=2
+        run: |
+          sed -i 's/^reactNativeArchitectures=.*/reactNativeArchitectures=arm64-v8a/' gradle.properties
+          ./gradlew assembleDebug --no-daemon --max-workers=2
 
       - name: Upload APK
         uses: actions/upload-artifact@v4

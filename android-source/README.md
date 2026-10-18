@@ -9,4 +9,4 @@ To download a test APK:
 3. When the run completes, download the `ledger-android-debug` artifact and extract `app-debug.apk`.
 4. Open the APK on an Android device. Android may ask you to allow installs from the browser or file manager.
 
-The APK is debug-signed for sideloaded testing and is not a Play Store release. This MVP imports bank alerts through copy/paste; it does not read SMS automatically or send transaction data to Gemini or a server.
+The APK is debug-signed for sideloaded testing and is not a Play Store release. It is built for `arm64-v8a` physical Android phones; it will not run on 32-bit ARM phones or x86 emulators. This MVP imports bank alerts through copy/paste; it does not read SMS automatically or send transaction data to Gemini or a server.

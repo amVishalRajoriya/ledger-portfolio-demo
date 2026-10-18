@@ -151,6 +151,7 @@ export function ActionButton({
   disabled = false,
   loading = false,
   style,
+  testID,
 }: {
   label: string;
   icon?: keyof typeof Feather.glyphMap;
@@ -159,6 +160,7 @@ export function ActionButton({
   disabled?: boolean;
   loading?: boolean;
   style?: StyleProp<ViewStyle>;
+  testID?: string;
 }) {
   const colors = useColors();
   return (
@@ -166,6 +168,8 @@ export function ActionButton({
       onPress={onPress}
       disabled={disabled || loading}
       accessibilityRole="button"
+      accessibilityLabel={label}
+      testID={testID}
       style={({ pressed }) => [
         styles.actionButton,
         { backgroundColor: secondary ? colors.secondary : colors.primary, borderColor: secondary ? colors.border : colors.primary },

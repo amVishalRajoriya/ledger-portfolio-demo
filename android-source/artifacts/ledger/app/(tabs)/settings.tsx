@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Platform, Pressable, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -6,6 +6,7 @@ import { useColors } from '@/hooks/useColors';
 import { useLedger } from '@/context/LedgerContext';
 import { confirmAction } from '@/lib/confirmAction';
 import { ActionButton, Card, Notice, Page, PageHeader, SectionHeading } from '@/components/LedgerUI';
+import { useAndroidNotificationAccess } from '@/hooks/useAndroidNotificationAccess';
 
 function SettingRow({
   icon,
@@ -40,6 +41,39 @@ export default function SettingsScreen() {
   const router = useRouter();
   const ledger = useLedger();
   const isAndroid = Platform.OS === 'android';
+  const notificationAccess = useAndroidNotificationAccess();
+  const [notificationActionError, setNotificationActionError] = useState('');
+
+  const enableAutomaticImport = async () => {
+    setNotificationActionError('');
+    try {
+      await notificationAccess.enable();
+    } catch (error) {
+      setNotificationActionError(error instanceof Error ? error.message : 'Could not open Android notification settings.');
+    }
+  };
+
+  const disableAutomaticImport = () => {
+    confirmAction({
+      title: 'Turn off automatic bank alerts?',
+      message: 'Ledger will stop capturing new alerts and clear any bank alerts waiting to be imported. Android notification access can also be revoked from system settings.',
+      confirmLabel: 'Turn off',
+      destructive: true,
+      onConfirm: () => {
+        setNotificationActionError('');
+        void notificationAccess.disable().catch(() => setNotificationActionError('Automatic import could not be turned off. Try again.'));
+      },
+    });
+  };
+
+  const openNotificationSettings = async () => {
+    setNotificationActionError('');
+    try {
+      await notificationAccess.openSystemSettings();
+    } catch (error) {
+      setNotificationActionError(error instanceof Error ? error.message : 'Could not open Android notification settings.');
+    }
+  };
 
   const reset = () => {
     confirmAction({
@@ -86,7 +120,7 @@ export default function SettingsScreen() {
           <SettingRow
             icon={isAndroid ? 'message-square' : 'zap'}
             title={isAndroid ? 'Message import' : 'Shortcuts automation'}
-            subtitle={isAndroid ? 'Copy and paste bank alerts; Ledger does not scan SMS' : 'Automatically save bank alerts on this iPhone'}
+            subtitle={isAndroid ? 'Optional notification import or copy and paste; no SMS inbox access' : 'Automatically save bank alerts on this iPhone'}
             onPress={() => router.push('/shortcuts')}
           />
           <View style={{ height: 1, backgroundColor: colors.border }} />
@@ -102,8 +136,69 @@ export default function SettingsScreen() {
         </Card>
       </View>
 
+      {isAndroid ? (
+        <View>
+          <SectionHeading title="Automatic bank alerts" subtitle="Optional. Copy and paste remains available when this is off." />
+          <Card style={{ gap: 11 }}>
+            <Text style={{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 19 }}>
+              Android notification access lets Ledger inspect notification contents. Ledger filters likely bank alerts on this device, queues only those alerts, and parses them locally. It does not request SMS inbox access or send messages to Gemini or a server.
+            </Text>
+            <Notice
+              tone={notificationAccess.status.enabled && notificationAccess.status.accessGranted ? 'positive' : 'neutral'}
+              icon={notificationAccess.status.enabled && notificationAccess.status.accessGranted ? 'check-circle' : 'info'}
+            >
+              {!notificationAccess.status.available
+                ? 'Automatic import requires an installed Android build. It is not available in Expo Go or the web preview.'
+                : notificationAccess.status.enabled && notificationAccess.status.accessGranted
+                  ? `Automatic import is on.${notificationAccess.status.pendingCount > 0 ? ` ${notificationAccess.status.pendingCount} alert${notificationAccess.status.pendingCount === 1 ? '' : 's'} waiting to be checked.` : ''}`
+                  : notificationAccess.status.enabled
+                    ? 'Automatic import is paused because Android notification access is not currently granted.'
+                    : 'Automatic import is off. Ledger will not capture new notifications.'}
+            </Notice>
+            {notificationActionError ? <Notice tone="warning" icon="alert-triangle">{notificationActionError}</Notice> : null}
+            <ActionButton
+              label={!notificationAccess.status.available
+                ? 'Requires an installed Android build'
+                : notificationAccess.status.enabled
+                  ? 'Turn off automatic import'
+                  : 'Enable automatic import'}
+              icon={notificationAccess.status.enabled ? 'bell-off' : 'bell'}
+              disabled={!notificationAccess.status.available}
+              testID="android-auto-import-toggle"
+              onPress={notificationAccess.status.enabled
+                ? disableAutomaticImport
+                : enableAutomaticImport}
+            />
+            {notificationAccess.status.available && notificationAccess.status.enabled && !notificationAccess.status.accessGranted ? (
+              <ActionButton
+                label="Grant notification access"
+                icon="bell"
+                secondary
+                testID="android-notification-access-grant"
+                onPress={enableAutomaticImport}
+              />
+            ) : null}
+            {notificationAccess.status.available ? (
+              <ActionButton
+                label="Manage Android notification access"
+                icon="settings"
+                secondary
+                testID="android-notification-access-manage"
+                onPress={openNotificationSettings}
+              />
+            ) : null}
+            <Text style={{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 10, lineHeight: 16 }}>
+              You can revoke notification access in Android settings at any time. Turning off Ledger’s import also clears alerts already waiting in its local queue.
+            </Text>
+          </Card>
+        </View>
+      ) : null}
+
       {ledger.shortcutImportWarning ? (
         <Notice tone="warning" icon="alert-triangle">{ledger.shortcutImportWarning}</Notice>
+      ) : null}
+      {ledger.notificationImportWarning ? (
+        <Notice tone="warning" icon="alert-triangle">{ledger.notificationImportWarning}</Notice>
       ) : null}
 
       {ledger.rules.length > 0 ? (

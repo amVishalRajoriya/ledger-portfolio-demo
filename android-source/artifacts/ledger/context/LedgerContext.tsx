@@ -32,6 +32,14 @@ import {
   readShortcutInbox,
   ShortcutInboxMessage,
 } from '@/lib/shortcutInbox';
+import {
+  acknowledgeAndroidBankAlerts,
+  type AndroidBankAlert,
+  getAndroidNotificationStatus,
+  getPendingAndroidBankAlerts,
+  isAndroidNotificationImportAvailable,
+  isPotentialAndroidBankAlert,
+} from '@/lib/androidNotificationImport';
 
 const STORAGE_KEY = 'ledger.local.v1';
 const ONBOARDING_KEY = 'ledger.onboarding.complete.v1';
@@ -41,6 +49,7 @@ interface LedgerContextValue extends LedgerState {
   hasCompletedOnboarding: boolean;
   storageWarning?: string;
   shortcutImportWarning?: string;
+  notificationImportWarning?: string;
   completeOnboarding: () => Promise<boolean>;
   addTransaction: (transaction: Omit<Transaction, 'id'>) => string;
   updateTransaction: (id: string, patch: Partial<Transaction>) => void;
@@ -92,10 +101,15 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
   const [storageWarning, setStorageWarning] = useState<string>();
   const [shortcutImportWarning, setShortcutImportWarning] = useState<string>();
+  const [notificationImportWarning, setNotificationImportWarning] = useState<string>();
   const [shortcutScanVersion, setShortcutScanVersion] = useState(0);
   const [shortcutQueue, setShortcutQueue] = useState<ShortcutInboxMessage[]>([]);
   const [shortcutFilesAwaitingSave, setShortcutFilesAwaitingSave] = useState<string[]>([]);
   const shortcutProcessingRef = useRef(false);
+  const [androidNotificationScanVersion, setAndroidNotificationScanVersion] = useState(0);
+  const [androidNotificationQueue, setAndroidNotificationQueue] = useState<AndroidBankAlert[]>([]);
+  const [androidAlertsAwaitingSave, setAndroidAlertsAwaitingSave] = useState<string[]>([]);
+  const androidNotificationProcessingRef = useRef(false);
   const persistenceQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
@@ -136,6 +150,7 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
     if (isLoading) return;
     const snapshot = JSON.stringify(state);
     const filesToDelete = [...shortcutFilesAwaitingSave];
+    const notificationIdsToAcknowledge = [...androidAlertsAwaitingSave];
     persistenceQueueRef.current = persistenceQueueRef.current
       .then(async () => {
         try {
@@ -144,6 +159,9 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
           setStorageWarning('Could not save the latest change on this device. Check available storage.');
           if (filesToDelete.length > 0) {
             setShortcutImportWarning('A Shortcut message could not be saved yet. It has been kept on this iPhone and will be retried.');
+          }
+          if (notificationIdsToAcknowledge.length > 0) {
+            setNotificationImportWarning('A bank alert could not be saved yet. It remains queued on this device and will be retried.');
           }
           return;
         }
@@ -159,18 +177,42 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
           setShortcutQueue((current) => current.filter((item) => !completed.has(item.fileName)));
           setShortcutImportWarning(undefined);
         }
+        if (notificationIdsToAcknowledge.length > 0) {
+          try {
+            await acknowledgeAndroidBankAlerts(notificationIdsToAcknowledge);
+            const completed = new Set(notificationIdsToAcknowledge);
+            setAndroidAlertsAwaitingSave((current) => current.filter((id) => !completed.has(id)));
+            setAndroidNotificationQueue((current) => current.filter((item) => !completed.has(item.id)));
+            setNotificationImportWarning(undefined);
+          } catch {
+            setNotificationImportWarning('A saved bank alert is still queued locally. Ledger will safely check it again.');
+            setAndroidAlertsAwaitingSave((current) => current.filter((id) => !notificationIdsToAcknowledge.includes(id)));
+          }
+        }
       })
       .catch(() => {
         setStorageWarning('Could not save the latest change on this device. Check available storage.');
       });
-  }, [state, isLoading, shortcutFilesAwaitingSave, shortcutScanVersion]);
+  }, [state, isLoading, shortcutFilesAwaitingSave, shortcutScanVersion, androidAlertsAwaitingSave]);
 
   useEffect(() => {
-    if (Platform.OS !== 'ios') return;
+    if (Platform.OS !== 'ios' && Platform.OS !== 'android') return;
     const subscription = AppState.addEventListener('change', (nextState) => {
-      if (nextState === 'active') setShortcutScanVersion((version) => version + 1);
+      if (nextState !== 'active') return;
+      if (Platform.OS === 'ios') setShortcutScanVersion((version) => version + 1);
+      if (Platform.OS === 'android') setAndroidNotificationScanVersion((version) => version + 1);
     });
-    return () => subscription.remove();
+    const notificationPoll = Platform.OS === 'android'
+      ? setInterval(() => {
+          if (AppState.currentState === 'active') {
+            setAndroidNotificationScanVersion((version) => version + 1);
+          }
+        }, 15_000)
+      : undefined;
+    return () => {
+      subscription.remove();
+      if (notificationPoll) clearInterval(notificationPoll);
+    };
   }, []);
 
   useEffect(() => {
@@ -195,6 +237,42 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
       });
     return () => { cancelled = true; };
   }, [isLoading, shortcutScanVersion]);
+
+  useEffect(() => {
+    if (
+      isLoading ||
+      Platform.OS !== 'android' ||
+      !isAndroidNotificationImportAvailable()
+    ) return;
+    let cancelled = false;
+    Promise.all([getAndroidNotificationStatus(), getPendingAndroidBankAlerts()])
+      .then(([status, alerts]) => {
+        if (cancelled || !status.enabled || !status.accessGranted) return;
+        const candidates = alerts.filter(isPotentialAndroidBankAlert);
+        const ignoredIds = alerts
+          .filter((item) => !isPotentialAndroidBankAlert(item))
+          .map((item) => item.id)
+          .filter(Boolean);
+        if (ignoredIds.length > 0) {
+          void acknowledgeAndroidBankAlerts(ignoredIds).catch(() => {
+            if (!cancelled) {
+              setNotificationImportWarning('An unrelated notification stayed in the local queue and will be skipped again.');
+            }
+          });
+        }
+        setAndroidNotificationQueue((current) => {
+          const heldIds = new Set(current.map((item) => item.id));
+          const additions = candidates.filter((item) => !heldIds.has(item.id));
+          return additions.length > 0 ? [...current, ...additions] : current;
+        });
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setNotificationImportWarning('Ledger could not read its local bank alert queue. It did not send notification text anywhere.');
+        }
+      });
+    return () => { cancelled = true; };
+  }, [isLoading, androidNotificationScanVersion]);
 
   const addTransaction = useCallback((input: Omit<Transaction, 'id'>) => {
     const id = makeId('transaction');
@@ -616,6 +694,41 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
   }, [state.accounts, state.rawMessages, state.reviews, state.rules]);
 
   useEffect(() => {
+    const nextAlert = androidNotificationQueue[0];
+    if (
+      isLoading ||
+      Platform.OS !== 'android' ||
+      !nextAlert ||
+      androidAlertsAwaitingSave.includes(nextAlert.id) ||
+      androidNotificationProcessingRef.current
+    ) return;
+
+    androidNotificationProcessingRef.current = true;
+    try {
+      const result = ingestSms(
+        nextAlert.text,
+        nextAlert.title || nextAlert.packageName,
+        nextAlert.receivedAt,
+      );
+      if (result.kind === 'review' && result.reason === 'This exact message was already imported.') {
+        void acknowledgeAndroidBankAlerts([nextAlert.id]).then(() => {
+          setAndroidNotificationQueue((current) => current.filter((item) => item.id !== nextAlert.id));
+        }).catch(() => {
+          setNotificationImportWarning('A duplicate alert remains queued locally. Ledger will check it again without adding another transaction.');
+        });
+      } else {
+        setAndroidAlertsAwaitingSave((current) =>
+          current.includes(nextAlert.id) ? current : [...current, nextAlert.id],
+        );
+      }
+    } catch {
+      setNotificationImportWarning('A bank alert could not be imported. It remains queued locally for another try.');
+    } finally {
+      androidNotificationProcessingRef.current = false;
+    }
+  }, [isLoading, androidNotificationQueue, androidAlertsAwaitingSave, ingestSms]);
+
+  useEffect(() => {
     const nextMessage = shortcutQueue[0];
     if (
       isLoading ||
@@ -688,6 +801,7 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
     hasCompletedOnboarding,
     storageWarning,
     shortcutImportWarning,
+    notificationImportWarning,
     completeOnboarding,
     addTransaction,
     updateTransaction,
@@ -701,7 +815,7 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
     loadDemo,
     clearLedger,
   }), [
-    state, isLoading, storageWarning, shortcutImportWarning, addTransaction, updateTransaction, removeTransaction,
+    state, isLoading, storageWarning, shortcutImportWarning, notificationImportWarning, addTransaction, updateTransaction, removeTransaction,
     hasCompletedOnboarding, completeOnboarding,
     addAccount, updateAccount, ingestSms, createRule, resolveReview, toggleFyMode, loadDemo, clearLedger,
   ]);

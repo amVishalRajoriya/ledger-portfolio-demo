@@ -35,27 +35,30 @@ export default function ShortcutsScreen() {
         eyebrow="On-device import"
         title={isAndroid ? 'Android message import' : 'iPhone Shortcuts'}
         subtitle={isAndroid
-          ? 'Import alerts you choose by copying and pasting them. Ledger does not read your SMS inbox.'
+          ? 'Optional automatic bank alerts or copy and paste. Ledger does not read your SMS inbox.'
           : 'Forward new bank alerts to Ledger; parsing happens locally when Ledger opens.'}
       />
 
       {isAndroid ? (
         <>
           <Notice tone="positive" icon="lock">
-            No SMS permission is requested. Ledger only processes the alert you paste, on this device; it does not send messages to Gemini or a server.
+            Automatic import uses Android notification access, which may expose notification contents to Ledger. Likely bank alerts are filtered and processed on-device; Ledger does not request SMS permission or send messages to Gemini or a server.
           </Notice>
           <View style={{ gap: 12 }}>
-            <SectionHeading title="Import a bank alert" subtitle="You stay in control of which message is shared with Ledger." />
+            <SectionHeading title="Choose an import method" subtitle="Automatic notification import is optional. Copy and paste works without notification access." />
             <Card style={{ gap: 8 }}>
+              <Text style={{ color: colors.foreground, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>Automatic bank alerts</Text>
+              <Text style={{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 18 }}>Turn this on in Settings → Automatic bank alerts. Android will ask you to grant notification access. Revoke it at any time in Android settings.</Text>
               <Text style={{ color: colors.foreground, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>1. Copy the complete alert from Messages</Text>
               <Text style={{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 18 }}>Include the sender text when your messaging app lets you copy it.</Text>
               <Text style={{ color: colors.foreground, fontFamily: 'Inter_600SemiBold', fontSize: 13, marginTop: 7 }}>2. Paste it into Ledger and preview</Text>
               <Text style={{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 18 }}>Check the result before saving. Unclear bank alerts go to Review; ordinary purchases belong in manual entry.</Text>
             </Card>
           </View>
+          <ActionButton label="Manage automatic bank alerts" icon="bell" secondary testID="android-import-settings" onPress={() => router.push('/(tabs)/settings')} />
           <ActionButton label="Import a bank message" icon="message-square" onPress={() => router.push('/import')} />
           <Notice tone="neutral" icon="info">
-            Older alerts work the same way: copy one message at a time. Ledger does not scan or import SMS history automatically.
+            Automatic import processes only new eligible notifications. For older alerts, copy one message at a time; Ledger never scans SMS history.
           </Notice>
         </>
       ) : (

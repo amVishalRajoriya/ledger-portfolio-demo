@@ -42,6 +42,7 @@ function RootLayoutNav() {
   if (!hasCompletedOnboarding) {
     return (
       <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" options={{ animation: 'none' }} />
         <Stack.Screen name="onboarding" />
       </Stack>
     );
@@ -49,6 +50,7 @@ function RootLayoutNav() {
 
   return (
     <Stack screenOptions={{ headerShown: false, headerBackTitle: 'Back', animation: 'slide_from_right' }}>
+      <Stack.Screen name="index" options={{ animation: 'none' }} />
       <Stack.Screen name="(tabs)" options={{ animation: 'none' }} />
       <Stack.Screen name="import" />
       <Stack.Screen name="new" />

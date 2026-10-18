@@ -1,0 +1,19 @@
+{
+  "id": "/",
+  "name": "Ledger — private personal finance",
+  "short_name": "Ledger",
+  "description": "A local-first ledger for bank alert imports, manual transactions, and spending insights.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f5f5ef",
+  "theme_color": "#24634f",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

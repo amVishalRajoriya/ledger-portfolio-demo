@@ -65,7 +65,7 @@ jobs:
 
       - name: Generate Android project
         working-directory: android-source
-        run: CI=1 pnpm --filter @workspace/ledger exec expo prebuild --platform android
+        run: CI=1 pnpm --filter @workspace/ledger exec expo prebuild --platform android --no-install
 
       - name: Assemble debug APK
         working-directory: android-source/artifacts/ledger/android

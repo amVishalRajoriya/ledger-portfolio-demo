@@ -86,10 +86,14 @@ class LedgerNotificationModule(
   private fun hasNotificationAccess(): Boolean {
     val enabledListeners = Settings.Secure.getString(
       appContext.contentResolver,
-      Settings.Secure.ENABLED_NOTIFICATION_LISTENERS,
+      ENABLED_NOTIFICATION_LISTENERS_KEY,
     ).orEmpty()
     val ownComponent = ComponentName(appContext, BankAlertNotificationListener::class.java)
       .flattenToString()
     return enabledListeners.split(':').any { it.equals(ownComponent, ignoreCase = true) }
+  }
+
+  companion object {
+    private const val ENABLED_NOTIFICATION_LISTENERS_KEY = "enabled_notification_listeners"
   }
 }

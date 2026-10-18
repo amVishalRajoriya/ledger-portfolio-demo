@@ -536,22 +536,23 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    if (requireApproval && result.kind === 'transaction') {
+    if (requireApproval && (result.kind === 'transaction' || result.kind === 'card-update')) {
+      const parsedAmount = result.kind === 'transaction' ? result.transaction.amount : result.dueAmount;
       const review: ReviewItem = {
         id: reviewId ?? makeId('review'),
         rawMessageId: raw.id,
         body,
         sender,
         receivedAt,
-        reason: 'Imported from SMS history. Confirm the details before adding it to your dashboard.',
-        parsedAmount: result.transaction.amount,
+        reason: 'Imported from SMS history. Confirm the details before applying it to your ledger.',
+        parsedAmount,
       };
       setState((current) => ({
         ...current,
         rawMessages: [{ ...raw, status: 'NEEDS_REVIEW' }, ...current.rawMessages],
         reviews: [review, ...current.reviews],
       }));
-      return { kind: 'review', reason: review.reason, parsedAmount: review.parsedAmount };
+      return { kind: 'review', reason: review.reason, parsedAmount };
     }
 
     if (result.kind === 'card-update') {

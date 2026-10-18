@@ -107,7 +107,7 @@ export default function OnboardingScreen() {
           isPreview
             ? 'Try the ledger, message parser, and insights with fictional data. No bank sign-in or server is needed.'
             : isAndroid
-              ? 'Optional Android notification access can import new bank alerts. Copy and paste remains available, and Ledger never reads your SMS inbox.'
+              ? 'Optional Android notification access can import new bank alerts. Recent SMS scanning is a separate, opt-in permission.'
             : 'Ledger is currently focused on Android. Import alerts on your device and keep your records local.'
         }
       />
@@ -118,7 +118,7 @@ export default function OnboardingScreen() {
             ? 'Android notification access is unavailable in this web or Expo Go preview. Use only fictional data here.'
             : 'Android SMS access and notification import are unavailable in this web or Expo Go preview.'
           : isAndroid
-            ? 'Ledger does not request SMS permission or scan your message history. Message text stays on this device and is not sent to Gemini or a server.'
+            ? 'Ledger reads SMS history only after you start the scan and grant Android permission. Messages stay on this device and are not sent to Gemini or a server.'
             : 'Message text stays on this device. Ledger does not need Gemini or a server to import it.'}
       </Notice>
 
@@ -126,7 +126,7 @@ export default function OnboardingScreen() {
         <Card style={{ gap: 11 }}>
           <Text style={{ color: colors.foreground, fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>Optional automatic bank alerts</Text>
           <Text style={{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 19 }}>
-            Android notification access allows Ledger to inspect notification contents. It filters likely bank alerts on-device and never reads SMS history. No notification text is sent to Gemini or a server. You can revoke access later in Android settings.
+            Android notification access allows Ledger to inspect notification contents. It filters likely new bank alerts on-device. SMS history is separate and is read only after you start a scan and grant permission. No message text is sent to Gemini or a server.
           </Text>
           {!notificationAccess.status.available ? (
             <Notice tone="warning" icon="smartphone">

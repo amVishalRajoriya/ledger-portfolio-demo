@@ -180,7 +180,7 @@ export default function SettingsScreen() {
           <SectionHeading title="Automatic bank alerts" subtitle="Optional. Copy and paste remains available when this is off." />
           <Card style={{ gap: 11 }}>
             <Text style={{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 19 }}>
-              Android notification access lets Ledger inspect notification contents. Ledger filters likely bank alerts on this device, queues only those alerts, and parses them locally. It does not request SMS inbox access or send messages to Gemini or a server.
+              Android notification access lets Ledger inspect notification contents for likely new bank alerts. SMS history is accessed only after you start the 90-day scan and grant separate permission. Message text stays on-device.
             </Text>
             <Notice
               tone={notificationAccess.status.enabled && notificationAccess.status.accessGranted ? 'positive' : 'neutral'}

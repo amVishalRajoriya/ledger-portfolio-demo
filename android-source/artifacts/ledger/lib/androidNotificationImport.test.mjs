@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { isPotentialAndroidBankAlert } from './androidBankAlertFilter.ts';
+import { getUnparsedNotificationReviewReason } from './androidNotificationFallback.ts';
 
 const makeAlert = (title, text, packageName = 'com.android.messaging') => ({
   id: 'alert-1',
@@ -43,5 +44,16 @@ test('allows an uncertain but bank-related alert to reach the review parser', ()
   assert.equal(
     isPotentialAndroidBankAlert(makeAlert('Bank alert', 'A/C XX1234 transaction notification; amount unavailable')),
     true,
+  );
+});
+
+test('keeps a likely bank notification in Review when parsing rejects it', () => {
+  assert.match(
+    getUnparsedNotificationReviewReason({ kind: 'rejected', reason: 'The notification text was incomplete.' }),
+    /could not parse it automatically.*incomplete/i,
+  );
+  assert.equal(
+    getUnparsedNotificationReviewReason({ kind: 'review', reason: 'Confirm the transaction direction.' }),
+    undefined,
   );
 });

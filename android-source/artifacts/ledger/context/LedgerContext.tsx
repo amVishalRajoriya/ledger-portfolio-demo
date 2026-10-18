@@ -41,6 +41,7 @@ import {
   isAndroidNotificationImportAvailable,
   isPotentialAndroidBankAlert,
 } from '@/lib/androidNotificationImport';
+import { getUnparsedNotificationReviewReason } from '@/lib/androidNotificationFallback';
 
 const STORAGE_KEY = 'ledger.local.v1';
 const ONBOARDING_KEY = 'ledger.onboarding.complete.v1';
@@ -464,7 +465,7 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
-  const ingestSms = useCallback((body: string, sender: string, receivedAt: string, reviewId?: string, requireApproval = false, confirmedDirection?: Direction): ParseResult => {
+  const ingestSms = useCallback((body: string, sender: string, receivedAt: string, reviewId?: string, requireApproval = false, confirmedDirection?: Direction, reviewRejectedAlert = false): ParseResult => {
     const result = parseBankMessage(body, sender, receivedAt, state.rules, confirmedDirection);
     const raw = makeRawMessage(body, sender, receivedAt);
     const retryRawMessageId = reviewId
@@ -485,6 +486,31 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
     }
 
     if (result.kind === 'rejected') {
+      const alertReviewReason = reviewRejectedAlert
+        ? getUnparsedNotificationReviewReason(result)
+        : undefined;
+      if (alertReviewReason) {
+        const review: ReviewItem = {
+          id: makeId('review'),
+          rawMessageId: raw.id,
+          body,
+          sender,
+          receivedAt,
+          reason: alertReviewReason,
+        };
+        setState((current) => ({
+          ...current,
+          rawMessages: [
+            { ...raw, status: 'NEEDS_REVIEW' },
+            ...current.rawMessages.map((message) => message.id === retryRawMessageId
+              ? { ...message, status: 'IGNORED' as const }
+              : message),
+          ],
+          reviews: [review, ...current.reviews.filter((item) => item.id !== reviewId)],
+          lastMessageAt: receivedAt,
+        }));
+        return { kind: 'review', reason: alertReviewReason };
+      }
       setState((current) => ({
         ...current,
         rawMessages: [{
@@ -784,6 +810,10 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
         nextAlert.text,
         nextAlert.title || nextAlert.packageName,
         nextAlert.receivedAt,
+        undefined,
+        false,
+        undefined,
+        true,
       );
       if (result.kind === 'review' && result.reason === 'This exact message was already imported.') {
         void acknowledgeAndroidBankAlerts([nextAlert.id]).then(() => {

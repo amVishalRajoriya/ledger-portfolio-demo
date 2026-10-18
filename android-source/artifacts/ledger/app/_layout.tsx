@@ -18,10 +18,12 @@ import { LedgerProvider } from '@/context/LedgerContext';
 import { useLedger } from '@/context/LedgerContext';
 import { useColors } from '@/hooks/useColors';
 
-// Prevent the splash screen from auto-hiding before asset loading is complete.
-SplashScreen.preventAutoHideAsync();
+// Keep the native splash visible while startup assets load, but never let a
+// stalled font request prevent the app from opening.
+void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
 const queryClient = new QueryClient();
+const FONT_LOAD_TIMEOUT_MS = 5000;
 
 function RootLayoutNav() {
   const { isLoading, hasCompletedOnboarding } = useLedger();
@@ -63,6 +65,7 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
+  const [fontLoadTimedOut, setFontLoadTimedOut] = React.useState(false);
   const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
@@ -72,11 +75,17 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (fontsLoaded || fontError) {
-      SplashScreen.hideAsync();
+      void SplashScreen.hideAsync().catch(() => undefined);
+      return;
     }
+    const timeout = setTimeout(() => {
+      setFontLoadTimedOut(true);
+      void SplashScreen.hideAsync().catch(() => undefined);
+    }, FONT_LOAD_TIMEOUT_MS);
+    return () => clearTimeout(timeout);
   }, [fontsLoaded, fontError]);
 
-  if (!fontsLoaded && !fontError) return null;
+  if (!fontsLoaded && !fontError && !fontLoadTimedOut) return null;
 
   return (
     <SafeAreaProvider>
